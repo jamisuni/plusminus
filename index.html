@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fun Math Practice for Kids!</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            color: #333;
+        }
+        h1 {
+            color: #ff6347;
+        }
+        #menu {
+            display: block;
+        }
+        #game {
+            display: none;
+        }
+        button {
+            background-color: #4caf50;
+            color: white;
+            padding: 15px 30px;
+            margin: 10px;
+            border: none;
+            border-radius: 10px;
+            font-size: 24px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #calculation {
+            font-size: 48px;
+            margin: 20px;
+            color: #4169e1;
+        }
+        #input {
+            font-size: 36px;
+            width: 150px;
+            padding: 10px;
+            text-align: center;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .numpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            max-width: 300px;
+            margin: 0 auto 20px;
+        }
+        .numpad button {
+            font-size: 36px;
+            padding: 20px;
+            background-color: #ffd700;
+            color: #333;
+        }
+        #submit {
+            background-color: #ff4500;
+            font-size: 24px;
+            padding: 15px 30px;
+        }
+        #feedback {
+            font-size: 36px;
+            margin: 20px;
+            height: 50px;
+        }
+        #timer, #points {
+            font-size: 28px;
+            margin: 10px;
+        }
+        #close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 36px;
+            cursor: pointer;
+            color: #999;
+        }
+        #close:hover {
+            color: #ff0000;
+        }
+        #confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        #scores {
+            margin-top: 20px;
+            font-size: 20px;
+        }
+        table {
+            margin: 0 auto;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div id="menu">
+        <h1>Fun Math Practice!</h1>
+        <p>Choose your level:</p>
+        <button onclick="startGame('junior')">Junior (Under 10)</button>
+        <button onclick="startGame('starter')">Starter (Up to 20)</button>
+        <button onclick="startGame('beginner')">Beginner (Up to 200)</button>
+        <div id="scores"></div>
+    </div>
+    <div id="game">
+        <span id="close" onclick="returnToMenu()">X</span>
+        <h1>Let's Practice!</h1>
+        <div id="timer">Time left: 6:00</div>
+        <div id="points">Points: 0</div>
+        <div id="calculation"></div>
+        <input type="text" id="input" maxlength="3" readonly tabindex="-1">
+        <div class="numpad">
+            <button onclick="appendNumber(1)">1</button>
+            <button onclick="appendNumber(2)">2</button>
+            <button onclick="appendNumber(3)">3</button>
+            <button onclick="appendNumber(4)">4</button>
+            <button onclick="appendNumber(5)">5</button>
+            <button onclick="appendNumber(6)">6</button>
+            <button onclick="appendNumber(7)">7</button>
+            <button onclick="appendNumber(8)">8</button>
+            <button onclick="appendNumber(9)">9</button>
+            <button onclick="appendNumber(0)">0</button>
+            <button onclick="clearInput()">Clear</button>
+        </div>
+        <button id="submit" onclick="checkAnswer()">Submit</button>
+        <div id="feedback"></div>
+    </div>
+    <canvas id="confetti-canvas" width="100%" height="100%"></canvas>
+
+    <script>
+        let currentLevel = '';
+        let timerInterval;
+        let remainingTime = 360; // 6 minutes in seconds
+        let points = 0;
+        let currentQuestion = {};
+        let attempts = 0;
+        let timerStopped = false;
+        const canvas = document.getElementById('confetti-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (/^[0-9]$/.test(e.key)) {
+                appendNumber(parseInt(e.key));
+                e.preventDefault();
+            } else if (e.key === 'Enter') {
+                checkAnswer();
+                e.preventDefault();
+            } else if (e.key === 'Backspace') {
+                clearInput();
+                e.preventDefault();
+            }
+        });
+
+        function startGame(level) {
+            currentLevel = level;
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('game').style.display = 'block';
+            resetGame();
+            generateQuestion();
+            startTimer();
+        }
+
+        function returnToMenu() {
+            clearInterval(timerInterval);
+            document.getElementById('game').style.display = 'none';
+            document.getElementById('menu').style.display = 'block';
+            saveScoreIfTop();
+            showTopScores();
+        }
+
+        function resetGame() {
+            remainingTime = 360;
+            points = 0;
+            attempts = 0;
+            timerStopped = false;
+            updateTimer();
+            updatePoints();
+            document.getElementById('feedback').innerText = '';
+            document.getElementById('input').value = '';
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                if (!timerStopped) {
+                    remainingTime--;
+                    updateTimer();
+                    if (remainingTime <= 0) {
+                        clearInterval(timerInterval);
+                        showAchievement();
+                        setTimeout(returnToMenu, 3000);
+                    }
+                }
+            }, 1000);
+        }
+
+        function updateTimer() {
+            const minutes = Math.floor(remainingTime / 60);
+            const seconds = remainingTime % 60;
+            document.getElementById('timer').innerText = `Time left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        }
+
+        function updatePoints() {
+            document.getElementById('points').innerText = `Points: ${points}`;
+        }
+
+        function appendNumber(num) {
+            const input = document.getElementById('input');
+            if (input.value.length < 3) {
+                input.value += num;
+            }
+        }
+
+        function clearInput() {
+            document.getElementById('input').value = '';
+        }
+
+        function generateQuestion() {
+            let a, b, op, question, answer;
+            let maxNum, isSimple = true;
+            attempts = 0;
+
+            while (isSimple) {
+                if (currentLevel === 'junior') {
+                    maxNum = 9;
+                } else if (currentLevel === 'starter') {
+                    maxNum = 20;
+                } else {
+                    maxNum = 200;
+                }
+
+                op = Math.random() < 0.5 ? '+' : '-';
+                const format = Math.floor(Math.random() * 4);
+
+                if (currentLevel === 'beginner') {
+                    a = 10 * Math.floor(Math.random() * 20 + 1);
+                    b = 10 * Math.floor(Math.random() * 20 + 1);
+                    if (Math.random() < 0.3) {
+                        a = 100 + 10 * Math.floor(Math.random() * 10);
+                        b = 10 * Math.floor(Math.random() * 10 + 1);
+                    }
+                    if (op === '-' && a < b) [a, b] = [b, a];
+                } else {
+                    a = Math.floor(Math.random() * maxNum) + 1; // +1 to avoid 0
+                    b = Math.floor(Math.random() * maxNum) + 1; // +1 to avoid 0
+                    if (op === '-' && a < b) [a, b] = [b, a];
+                }
+
+                switch (format) {
+                    case 0: // a + b = ?
+                        question = `${a} + ${b} = _`;
+                        answer = a + b;
+                        break;
+                    case 1: // a - b = ?
+                        question = `${a} - ${b} = _`;
+                        answer = a - b;
+                        break;
+                    case 2: // a + _ = c
+                        const c2 = a + b;
+                        question = `${a} + _ = ${c2}`;
+                        answer = b;
+                        break;
+                    case 3: // _ - b = d
+                        const d = a - b;
+                        question = `_ - ${b} = ${d}`;
+                        answer = a;
+                        break;
+                }
+
+                isSimple = false;
+                if (answer === 0) isSimple = true; // Avoid 0 answers
+
+                // Avoid simple for starter and above
+                if (currentLevel !== 'junior') {
+                    if (answer < 3 || (op === '-' && a === b) || (op === '+' && (a < 4 || b < 4))) {
+                        isSimple = true;
+                    }
+                }
+
+                // Reduce small answers chance
+                if (currentLevel !== 'junior' && answer <= 2 && Math.random() < 0.5) {
+                    isSimple = true;
+                }
+
+                // For beginner, ensure full 10's
+                if (currentLevel === 'beginner' && answer % 10 !== 0) {
+                    isSimple = true;
+                }
+            }
+
+            currentQuestion = { question, answer };
+            document.getElementById('calculation').innerText = currentQuestion.question;
+            clearInput();
+        }
+
+        function checkAnswer() {
+            const userAnswer = parseInt(document.getElementById('input').value);
+            const feedback = document.getElementById('feedback');
+            if (isNaN(userAnswer)) return;
+
+            attempts++;
+            if (userAnswer === currentQuestion.answer) {
+                if (attempts === 1) {
+                    points += 1;
+                } // No +1 on second try
+                updatePoints();
+                feedback.innerText = 'Great!';
+                feedback.style.color = 'green';
+                showConfetti();
+                if (timerStopped) timerStopped = false;
+                setTimeout(nextQuestion, 1000);
+            } else {
+                points = Math.max(0, points - 1);
+                updatePoints();
+                const wrongMsg = `${currentQuestion.question.replace('_', userAnswer)} wasn't right`;
+                feedback.innerText = wrongMsg;
+                feedback.style.color = 'red';
+                if (attempts === 1) {
+                    timerStopped = true;
+                    clearInput();
+                    setTimeout(() => { feedback.innerText = 'Try again!'; }, 1500);
+                } else {
+                    feedback.innerText = wrongMsg + '. Correct is ' + currentQuestion.question.replace('_', currentQuestion.answer);
+                    if (timerStopped) timerStopped = false;
+                    setTimeout(nextQuestion, 2500);
+                }
+            }
+        }
+
+        function nextQuestion() {
+            document.getElementById('feedback').innerText = '';
+            generateQuestion();
+        }
+
+        function showAchievement() {
+            let msg = 'Your score: ' + points + '! ';
+            if (points >= 70) msg += 'Legendary!';
+            else if (points >= 45) msg += 'Great!';
+            else if (points >= 30) msg += 'OK!';
+            else msg += 'Keep practicing!';
+            document.getElementById('feedback').innerText = msg;
+        }
+
+        function saveScoreIfTop() {
+            const key = 'topScores' + currentLevel.charAt(0).toUpperCase() + currentLevel.slice(1);
+            let scores = JSON.parse(localStorage.getItem(key)) || [];
+            const newScore = { score: points, date: new Date().toLocaleString() };
+            scores.push(newScore);
+            scores.sort((a, b) => b.score - a.score);
+            scores = scores.slice(0, 10);
+            localStorage.setItem(key, JSON.stringify(scores));
+        }
+
+        function showTopScores() {
+            const levels = ['junior', 'starter', 'beginner'];
+            let html = '';
+            levels.forEach(level => {
+                const key = 'topScores' + level.charAt(0).toUpperCase() + level.slice(1);
+                const scores = JSON.parse(localStorage.getItem(key)) || [];
+                if (scores.length > 0) {
+                    html += `<h2>Top Scores for ${level.charAt(0).toUpperCase() + level.slice(1)}</h2>
+                    <table><tr><th>Score</th><th>Date</th></tr>`;
+                    scores.forEach(s => {
+                        html += `<tr><td>${s.score}</td><td>${s.date}</td></tr>`;
+                    });
+                    html += '</table>';
+                }
+            });
+            document.getElementById('scores').innerHTML = html;
+        }
+
+        // Simple confetti
+        let confettiParticles = [];
+        function showConfetti() {
+            confettiParticles = [];
+            for (let i = 0; i < 100; i++) {
+                confettiParticles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height - canvas.height,
+                    r: Math.random() * 6 + 1,
+                    color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                    vx: Math.random() * 4 - 2,
+                    vy: Math.random() * 2 + 2,
+                    tilt: Math.random() * 10 - 5,
+                    tiltAngle: 0
+                });
+            }
+            animateConfetti();
+        }
+
+        function animateConfetti() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            confettiParticles.forEach((p, i) => {
+                p.tiltAngle += 0.1;
+                p.y += p.vy;
+                p.x += p.vx;
+                p.tilt = Math.sin(p.tiltAngle) * 15;
+                if (p.y > canvas.height) confettiParticles.splice(i, 1);
+                ctx.beginPath();
+                ctx.lineWidth = p.r;
+                ctx.strokeStyle = p.color;
+                ctx.moveTo(p.x + p.tilt + p.r / 4, p.y);
+                ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r / 4);
+                ctx.stroke();
+            });
+            if (confettiParticles.length > 0) requestAnimationFrame(animateConfetti);
+        }
+
+        showTopScores();
+    </script>
+</body>
+</html>
